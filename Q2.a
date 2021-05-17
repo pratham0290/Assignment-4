@@ -1,0 +1,61 @@
+library(tidyverse)
+library(ggplot2)
+library(dplyr)
+library(WDI)
+library(maps)
+library(countrycode)
+library(knitr)
+library(rmarkdown)
+library(grid)
+library(gridExtra)
+# Q2.a 
+WDIsearch("gdp.*capita.*PPP")
+WDIsearch("CO2.*capita")
+wdi_data <- WDI(indicator = c("NY.GDP.PCAP.PP.KD","EN.ATM.CO2E.PC"), start=2010, end=2010, extra=TRUE)
+wdi_data = as_tibble(wdi_data)
+
+glimpse(wdi_data)
+wdi_data <- wdi_data %>% rename(GDPpercap=NY.GDP.PCAP.PP.KD,Emit_CO2percap=EN.ATM.CO2E.PC)
+
+write_csv(wdi_data,"wdi_CO2_GDP.csv")
+wdi <- read_csv("wdi_CO2_GDP.csv")
+summary(wdi$Emit_CO2percap)
+
+
+# map data
+
+dat_map <- map_data("world")
+dim(dat_map)
+
+# Full join
+#install.packages("gt") 
+
+dat_map$ccode<- countrycode(dat_map$region,origin="country.name",destination="wb")
+wdi$ccode <- countrycode(wdi$country,origin="country.name",destination="wb")
+merged <- full_join(dat_map, wdi, by="ccode")
+#View(merged)
+#summary(merged)
+
+Top_5 = merged %>%
+  distinct(Emit_CO2percap, .keep_all=TRUE)%>%
+  arrange(desc(Emit_CO2percap), .by_group = TRUE)
+
+a = Top_5[, c('country', 'Emit_CO2percap')]
+Top = head(a,5)
+
+tt1 = ttheme_minimal(
+  core=list(bg_params = list(fill = blues9[1:4], col=NA),
+            fg_params=list(fontface=3)),
+  colhead=list(fg_params=list(col="navyblue", fontface=4L)),
+  rowhead=list(fg_params=list(col="slateblue", fontface=3L)))
+
+top <- tableGrob(Top, theme = tt1)
+map = ggplot(merged,aes(x=long,y=lat,group=group,fill=Emit_CO2percap))+
+  geom_polygon()+
+  labs(title = "BUSA8090 Assignment 3 Question 2.a",
+       subtitle = "Figure 1: CO2 emissions (metric tonnes per capita)")+
+  xlab("Longitude")+
+  ylab("Latitude")
+map 
+finalplot = grid.arrange(map, bottom = "Table 1: Top 5 countries that have highest CO2 Emissions", 
+                         top, heights = c(10, 4))
